@@ -1,0 +1,182 @@
+---
+title: "atividade4"
+author: "Gabriel Depiantti"
+date: "24/09/2021"
+output: html_document
+---
+
+
+```{r pacotes 1, warning=FALSE, message=FALSE}
+require(tidyverse)
+require(rgbif)
+require(dplyr)
+#install.packages("ggmap")
+#install.packages("maps")
+#install.packages("mapdata")
+#install.packages('ggplot2')
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(mapdata)
+```
+
+
+ 
+Vamos utilizar a função 'occ_data' para buscarmos ocorrencias no repositório do GBIF através no nome científico da especies que buscamos.Vamos utulizar os argumentos 'hasCoordinate' e 'hasGeospatialIssue' para selecionarmos apenas ocorrencias que possuem coordenadas e sem problemas geoespaciais 
+
+```{r}
+# baixar ocorrencias
+xylopea_gbif <- occ_data(scientificName = "Xylopia sericea", 
+                      hasCoordinate = TRUE,
+                      hasGeospatialIssue=FALSE)
+
+```
+
+
+
+
+
+Usaremmos a função 'dim' para acessarmos as dimensoes do banco de dados da busca.
+Com '$data' temos as dimensões da lista de conjunto de dados que podemos ter acesso.
+Atraves de '$data %>% names' podemos ver a lista com todos os data frames que podemos ter acesso.
+
+```{r}
+
+
+# Dimensoes do conjunto de dados 
+dim(xylopea_gbif$data)
+
+
+# Lista com todos os data frames
+xylopea_gbif$data %>% names
+```
+
+
+
+
+
+
+
+Com função 'gbif_issues' temos acesso a lista de problemas que já foram reportados e que possuem um código.
+Como existem muitos problemas reportados, utilizamos a função 'strsplit' especificar os as issues.
+
+```{r}
+#Problemas reportados  
+gbif_issues()
+
+
+issues_gbif<-xylopea_gbif$data$issues %>%
+    unique() %>%  #não usar valores repetidos 
+    strsplit(.,'[,]') %>%  
+    unlist() #Juntar a lista de "issues" em um único arquivo de vetor
+```
+
+
+
+
+
+
+Podemos aqui verificar quais os problemas reportados no datset baixado 
+```{r}
+gbif_issues()%>%head
+  data.frame()%>%
+      filter(code %in% issues_gbif)
+
+
+```
+
+
+
+Problemas reportados
+
+
+Agora vamos selecionar variaveis que estejam relacionadas a especies escolhida e que vão validar os dados em futuras analises.
+
+```{r}
+xylopea_gbif1 <- xylopea_gbif$data %>%
+    dplyr::select(scientificName, acceptedScientificName,
+                  decimalLatitude, decimalLongitude,issues, basisOfRecord, 
+                  occurrenceStatus, rightsHolder, datasetName, 
+                  recordedBy, locality, habitat)
+```
+
+
+
+
+
+
+
+
+Das ocorrências retornadas, vamos ver, através da função 'distinct', quantas são únicas
+
+```{r}
+xylopea_gbif1 <- xylopea_gbif1 %>% 
+    distinct()
+```
+
+Para sabermos os valores únicos presentes nos dados, vamos usar a função 'unique' em cada coluna com a função 'lapply'
+
+```{r}
+# checar niveis dos fatores
+lapply(xylopea_gbif1, unique)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+Problemas não reportados
+
+Para realizarmos uma apuração mais fina, checamos a ocorrencia da especies de uma forma mais restrita através dos dados em 'locality'
+```{r}
+# investigar niveis suspeitos
+xylopea_gbif1 %>% 
+    distinct(habitat) %>% 
+    pull()
+```
+
+```{r}
+# habitat
+xylopea_gbif1 %>%
+    group_by(habitat) %>% 
+    summarise(occ = length(scientificName)) %>% 
+    ggplot(aes(occ, y=habitat)) +
+    geom_bar(stat = 'identity') 
+```
+
+
+
+
+
+
+
+
+```{r}
+xylopea_gbif1 %>% 
+    filter(locality %in% c("Floresta Atlântica.", "Capoeirao", "BosqueGaleria", "Cerrado, em pequena mata", "Terrestrial", "Atlantic Forest")) %>% 
+    distinct(datasetName) 
+```
+
+
+
+
+
+
+```{r}
+world <- map_data('world')
+
+ggplot() +
+    geom_polygon(data = world, aes(x = long, y = lat, group = group)) +
+    coord_fixed() +
+    theme_classic() +
+    geom_point(data = xylopea_gbif1, aes(x = decimalLongitude, y = decimalLatitude), color = "red") +
+    labs(x = "longitude", y = "latitude", title = expression(italic("Xylopia sericea")))
+```
